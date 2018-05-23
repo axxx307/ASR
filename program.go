@@ -1,9 +1,13 @@
 package main
 
 import (
+	"crypto/sha1"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"log"
+	"sort"
+	"strings"
 
 	"github.com/mpiannucci/peakdetect"
 	"github.com/r9y9/gossp"
@@ -30,17 +34,27 @@ func main() {
 	}
 
 	spectrogram, _ := gossp.SplitSpectrogram(spgramConfig.STFT(monoData))
-	fingerprints := findPeaksInFrame(spectrogram)
-	fmt.Println(fingerprints)
+	fingerprint := generateFingerPrints(spectrogram)
+	for _, v := range fingerprint {
+		println(v)
+	}
 }
 
 //PrintMatrixAsGnuplotFormat s
-func findPeaksInFrame(matrix [][]float64) [][]float64 {
+func generateFingerPrints(matrix [][]float64) []string {
 	fmt.Println(len(matrix))
-	frameToFreq := make([][]float64, len(matrix))
+	frameToFreq := make([]string, len(matrix))
 	for frame, vec := range matrix {
 		_, _, _, maxv := peakdetect.PeakDetect(vec[:], 1.0)
-		frameToFreq[frame] = maxv
+		sort.Float64s(maxv)
+		frameToFreq[frame] = generateHashes(&frame, &maxv)
 	}
 	return frameToFreq
+}
+func generateHashes(frame *int, localMax *[]float64) string {
+	hash := sha1.New()
+	hashStr := fmt.Sprintf("%v|", *frame)
+	hashStr += strings.Trim(strings.Join(strings.Fields(fmt.Sprint(*localMax)), "|"), "[]")
+	hash.Write([]byte(hashStr))
+	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
 }
