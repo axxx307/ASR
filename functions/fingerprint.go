@@ -1,4 +1,4 @@
-package main
+package asr
 
 import (
 	"crypto/sha1"
@@ -49,9 +49,41 @@ func Analyze(file *string, session *mgo.Session) {
 	}
 	fingerprintIDs := writeFingerPrintsToDB(&hashes, session)
 	song := &Song{Name: *file, Duration: "0", FingerprintIDs: &fingerprintIDs}
-	if error := writeSong(song, session); error != nil {
+	if error := WriteSong(song, session); error != nil {
 		log.Fatal(error)
 	}
+}
+
+//LookUp searches song by generated hashes
+func LookUp(file *string, session *mgo.Session) Song {
+	spectorgram := createSpectrogram(file)
+	peaks := processPeaks(spectorgram)
+
+	//remove frequencies below threshold
+	for index, peak := range peaks {
+		k := 0
+		subFingerprint := make([]float64, len(peak))
+		for _, value := range peak {
+			if value/100 >= MinAmpLimit && value/100 <= MaxAmpLimit {
+				subFingerprint[k] = value
+				k++
+			}
+		}
+		peaks[index] = subFingerprint
+
+	}
+
+	hashes := make([]string, len(peaks))
+	for index, peak := range peaks {
+		hashes[index] = generateHashes(&peak)
+	}
+	for _, hash := range hashes {
+		if fingerprintID := SearchSong(&hash, session); fingerprintID != "" {
+			println(fingerprintID)
+			break
+		}
+	}
+	return Song{}
 }
 
 //Create spectrogram for wav file
@@ -94,7 +126,8 @@ func generateHashes(localMax *[]float64) string {
 
 func writeFingerPrintsToDB(hashes *[]string, session *mgo.Session) []string {
 	fingerpintGUID, _ := uuid.NewV4()
-	fingerprintIDs := make([]string, len(*hashes))
+	fingerprintIDs := make([]string, len(*hashes)/256+1)
+	fingerprintIDs[0] = fingerpintGUID.String()
 	for index, hash := range *hashes {
 		guid, _ := uuid.NewV4()
 		fingerprint := &SubFingerprint{SubFingerPrintID: guid.String()}
@@ -102,10 +135,10 @@ func writeFingerPrintsToDB(hashes *[]string, session *mgo.Session) []string {
 		//set new fingerprint block
 		if index%256 == 0 && index != 0 {
 			fingerpintGUID, _ = uuid.NewV4()
-			fingerprintIDs[index] = fingerpintGUID.String()
+			fingerprintIDs = append(fingerprintIDs, fingerpintGUID.String())
 		}
 		fingerprint.Hash = hash
-		if error := writeSubFingerprint(fingerprint, session); error != nil {
+		if error := WriteSubFingerprint(fingerprint, session); error != nil {
 			log.Fatal(error)
 		}
 	}

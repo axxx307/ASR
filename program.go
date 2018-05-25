@@ -1,13 +1,17 @@
 package main
 
 import (
+	asr "ASR/functions"
 	"flag"
+	"os"
 
 	mgo "gopkg.in/mgo.v2"
 )
 
 func main() {
-	filename := flag.String("i", "sample.wav", "Input filename")
+	args := os.Args
+
+	filename := flag.String("i", args[1], "Input filename")
 	flag.Parse()
 
 	session, err := mgo.Dial("localhost:27017")
@@ -16,7 +20,13 @@ func main() {
 	}
 	defer session.Close()
 
-	Analyze(filename, session)
+	if args[0] == "analyze" {
+		println("ss")
+		asr.Analyze(filename, session)
+	}
+	if args[0] == "lookup" {
+		asr.Analyze(filename, session)
+	}
 }
 
 ///CURRENTLY - EACH OF THE FRAME IS ROUGHLY A 10 MILISECONDS OF THE SONG

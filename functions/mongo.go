@@ -1,7 +1,10 @@
-package main
+package asr
 
 import (
+	"log"
+
 	mgo "gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 func setConntedtion() {
@@ -27,17 +30,25 @@ type Song struct {
 	FingerprintIDs *[]string
 }
 
-func writeSubFingerprint(subprint *SubFingerprint, session *mgo.Session) error {
+func WriteSubFingerprint(subprint *SubFingerprint, session *mgo.Session) error {
 	c := session.DB("ASR").C("fingerprints")
 	return c.Insert(subprint)
 }
 
-func writeSong(song *Song, session *mgo.Session) error {
+func WriteSong(song *Song, session *mgo.Session) error {
 	c := session.DB("ASR").C("songs")
 	return c.Insert(song)
 }
 
-func searchSong(song *Song, session *mgo.Session) error {
-	c := session.DB("ASR").C("songs")
-	return c.Insert(song)
+func SearchSong(hash *string, session *mgo.Session) string {
+	c := session.DB("ASR").C("fingerprints")
+	result := &SubFingerprint{Hash: ""}
+	err := c.Find(bson.M{"hash": hash}).One(result)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if result.Hash == "" {
+		return ""
+	}
+	return result.FingerPrintID
 }
