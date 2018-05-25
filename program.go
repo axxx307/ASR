@@ -2,13 +2,21 @@ package main
 
 import (
 	"flag"
+
+	mgo "gopkg.in/mgo.v2"
 )
 
 func main() {
 	filename := flag.String("i", "sample.wav", "Input filename")
 	flag.Parse()
 
-	Analyze(filename)
+	session, err := mgo.Dial("localhost:27017")
+	if err != nil {
+		panic(err)
+	}
+	defer session.Close()
+
+	Analyze(filename, session)
 }
 
 ///CURRENTLY - EACH OF THE FRAME IS ROUGHLY A 10 MILISECONDS OF THE SONG

@@ -8,11 +8,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/satori/go.uuid"
+
 	"github.com/mpiannucci/peakdetect"
 	"github.com/r9y9/gossp"
 	"github.com/r9y9/gossp/io"
 	"github.com/r9y9/gossp/stft"
 	"github.com/r9y9/gossp/window"
+	mgo "gopkg.in/mgo.v2"
 )
 
 //MinAmpLimit minimum threshold for a frequency to be registered
@@ -22,24 +25,32 @@ const MinAmpLimit = 300
 const MaxAmpLimit = 2000
 
 //Analyze sf
-func Analyze(file *string) {
+func Analyze(file *string, session *mgo.Session) {
 	spectorgram := createSpectrogram(file)
 	peaks := processPeaks(spectorgram)
 
 	//remove frequencies below threshold
-	for _, peak := range peaks {
+	for index, peak := range peaks {
 		k := 0
+		subFingerprint := make([]float64, len(peak))
 		for _, value := range peak {
-			if value >= MinAmpLimit && value <= MaxAmpLimit {
-				peak[k] = value
+			if value/100 >= MinAmpLimit && value/100 <= MaxAmpLimit {
+				subFingerprint[k] = value
 				k++
 			}
-			peak = peak[:]
 		}
+		peaks[index] = subFingerprint
+
 	}
-	for _, peak := range peaks {
-		hash := generateHashes(&peak)
-		println(hash)
+
+	hashes := make([]string, len(peaks))
+	for index, peak := range peaks {
+		hashes[index] = generateHashes(&peak)
+	}
+	fingerprintIDs := writeFingerPrintsToDB(&hashes, session)
+	song := &Song{Name: *file, Duration: "0", FingerprintIDs: &fingerprintIDs}
+	if error := writeSong(song, session); error != nil {
+		log.Fatal(error)
 	}
 }
 
@@ -79,4 +90,24 @@ func generateHashes(localMax *[]float64) string {
 	hashStr += strings.Trim(strings.Join(strings.Fields(fmt.Sprint(*localMax)), "|"), "[]")
 	hash.Write([]byte(hashStr))
 	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
+}
+
+func writeFingerPrintsToDB(hashes *[]string, session *mgo.Session) []string {
+	fingerpintGUID, _ := uuid.NewV4()
+	fingerprintIDs := make([]string, len(*hashes))
+	for index, hash := range *hashes {
+		guid, _ := uuid.NewV4()
+		fingerprint := &SubFingerprint{SubFingerPrintID: guid.String()}
+		fingerprint.FingerPrintID = fingerpintGUID.String()
+		//set new fingerprint block
+		if index%256 == 0 && index != 0 {
+			fingerpintGUID, _ = uuid.NewV4()
+			fingerprintIDs[index] = fingerpintGUID.String()
+		}
+		fingerprint.Hash = hash
+		if error := writeSubFingerprint(fingerprint, session); error != nil {
+			log.Fatal(error)
+		}
+	}
+	return fingerprintIDs
 }
