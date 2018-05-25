@@ -10,8 +10,7 @@ import (
 
 func main() {
 	args := os.Args
-
-	filename := flag.String("i", args[1], "Input filename")
+	filename := flag.String("i", args[2], "Input filename")
 	flag.Parse()
 
 	session, err := mgo.Dial("localhost:27017")
@@ -20,12 +19,11 @@ func main() {
 	}
 	defer session.Close()
 
-	if args[0] == "analyze" {
-		println("ss")
+	if args[1] == "analyze" {
 		asr.Analyze(filename, session)
 	}
-	if args[0] == "lookup" {
-		asr.Analyze(filename, session)
+	if args[1] == "lookup" {
+		asr.LookUp(filename, session)
 	}
 }
 
