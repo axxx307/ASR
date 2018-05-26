@@ -77,12 +77,17 @@ func LookUp(file *string, session *mgo.Session) Song {
 	for index, peak := range peaks {
 		hashes[index] = generateHashes(&peak)
 	}
+
+	//find fingerprint blocks where at least one of the subfingerprints match in database
+	hashMap := make(map[string]bool)
 	for _, hash := range hashes {
 		if fingerprintID := SearchSong(&hash, session); fingerprintID != "" {
-			println(fingerprintID)
-			break
+			if _, exists := hashMap[fingerprintID]; !exists {
+				hashMap[fingerprintID] = true
+			}
 		}
 	}
+
 	return Song{}
 }
 
