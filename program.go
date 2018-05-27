@@ -3,6 +3,7 @@ package main
 import (
 	asr "ASR/functions"
 	"flag"
+	"fmt"
 	"os"
 
 	mgo "gopkg.in/mgo.v2"
@@ -21,8 +22,10 @@ func main() {
 
 	if args[1] == "analyze" {
 		asr.Analyze(filename, session)
+		fmt.Println("Analysis complete")
 	}
 	if args[1] == "lookup" {
-		asr.LookUp(filename, session)
+		song := asr.LookUp(filename, session)
+		fmt.Printf("Song is - %s", song)
 	}
 }

@@ -24,6 +24,19 @@ const MinAmpLimit = 300
 //MaxAmpLimit minimum threshold for a frequency to be registered
 const MaxAmpLimit = 2000
 
+//SortPair is used sorting songs appearence by value
+type SortPair struct {
+	key   string
+	value int
+}
+
+//PairList A slice of pairs that implements sort.Interface to sort by values
+type PairList []SortPair
+
+func (p PairList) Len() int           { return len(p) }
+func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p PairList) Less(i, j int) bool { return p[i].value < p[j].value }
+
 //Analyze sf
 func Analyze(file *string, session *mgo.Session) {
 	spectorgram := createSpectrogram(file)
@@ -55,7 +68,7 @@ func Analyze(file *string, session *mgo.Session) {
 }
 
 //LookUp searches song by generated hashes
-func LookUp(file *string, session *mgo.Session) Song {
+func LookUp(file *string, session *mgo.Session) string {
 	spectorgram := createSpectrogram(file)
 	peaks := processPeaks(spectorgram)
 
@@ -81,14 +94,34 @@ func LookUp(file *string, session *mgo.Session) Song {
 	//find fingerprint blocks where at least one of the subfingerprints match in database
 	hashMap := make(map[string]bool)
 	for _, hash := range hashes {
-		if fingerprintID := SearchSong(&hash, session); fingerprintID != "" {
+		if fingerprintID := SearchSongBySubFingerprint(&hash, session); fingerprintID != "" {
 			if _, exists := hashMap[fingerprintID]; !exists {
 				hashMap[fingerprintID] = true
 			}
 		}
 	}
 
-	return Song{}
+	//retreive all songs and number of times tey were found by fingerprint
+	songs := make(map[string]int)
+	for fingerprint := range hashMap {
+		song := SearchSongByFingerprint(&fingerprint, session)
+		if _, exists := songs[song.Name]; !exists && song.Name != "" {
+			songs[song.Name] = 1
+		} else {
+			songs[song.Name]++
+		}
+	}
+
+	//sort songs in descending order and return one with more of block hit
+	index := 0
+	result := make(PairList, len(songs))
+	for key, value := range songs {
+		result[index] = SortPair{key, value}
+		index++
+	}
+
+	sort.Sort(sort.Reverse(result))
+	return result[0].key
 }
 
 //Create spectrogram for wav file
@@ -111,7 +144,6 @@ func createSpectrogram(file *string) [][]float64 {
 }
 
 func processPeaks(matrix [][]float64) [][]float64 {
-	fmt.Println(len(matrix))
 	peaks := make([][]float64, len(matrix))
 	for frame, vec := range matrix {
 		_, _, _, maxv := peakdetect.PeakDetect(vec[:], 1.0)

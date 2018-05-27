@@ -30,17 +30,20 @@ type Song struct {
 	FingerprintIDs *[]string
 }
 
+//WriteSubFingerprint - add subfingerprint block into db
 func WriteSubFingerprint(subprint *SubFingerprint, session *mgo.Session) error {
 	c := session.DB("ASR").C("fingerprints")
 	return c.Insert(subprint)
 }
 
+//WriteSong - add song into db
 func WriteSong(song *Song, session *mgo.Session) error {
 	c := session.DB("ASR").C("songs")
 	return c.Insert(song)
 }
 
-func SearchSong(hash *string, session *mgo.Session) string {
+//SearchSongBySubFingerprint - search all fingerprint blocks by subfingerprint hash
+func SearchSongBySubFingerprint(hash *string, session *mgo.Session) string {
 	c := session.DB("ASR").C("fingerprints")
 	result := &SubFingerprint{Hash: ""}
 	err := c.Find(bson.M{"hash": hash}).One(result)
@@ -51,4 +54,18 @@ func SearchSong(hash *string, session *mgo.Session) string {
 		return ""
 	}
 	return result.FingerPrintID
+}
+
+//SearchSongByFingerprint - search song by fingerprint block
+func SearchSongByFingerprint(hash *string, session *mgo.Session) *Song {
+	c := session.DB("ASR").C("songs")
+	result := &Song{}
+	err := c.Find(bson.M{"fingerprintids": hash}).One(result)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if result == nil {
+		return nil
+	}
+	return result
 }
