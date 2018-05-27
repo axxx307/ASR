@@ -69,3 +69,17 @@ func SearchSongByFingerprint(hash *string, session *mgo.Session) *Song {
 	}
 	return result
 }
+
+//SearchExistingSongInDb - search song by name in case we try to run analysis on it again
+func SearchExistingSongInDb(name *string, session *mgo.Session) *Song {
+	c := session.DB("ASR").C("songs")
+	result := &Song{}
+	err := c.Find(bson.M{"name": name}).One(result)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if result == nil {
+		return nil
+	}
+	return result
+}

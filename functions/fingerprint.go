@@ -37,7 +37,7 @@ func (p PairList) Len() int           { return len(p) }
 func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 func (p PairList) Less(i, j int) bool { return p[i].value < p[j].value }
 
-//Analyze sf
+//Analyze song into multiple blocks of subfingerprints
 func Analyze(file *string, session *mgo.Session) {
 	spectorgram := createSpectrogram(file)
 	peaks := processPeaks(spectorgram)
@@ -122,6 +122,11 @@ func LookUp(file *string, session *mgo.Session) string {
 
 	sort.Sort(sort.Reverse(result))
 	return result[0].key
+}
+
+//SearchExistingSong - search song by name in case we try to run analysis on it again
+func SearchExistingSong(name *string, session *mgo.Session) *Song {
+	return SearchExistingSongInDb(name, session)
 }
 
 //Create spectrogram for wav file
