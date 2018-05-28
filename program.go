@@ -21,13 +21,13 @@ func main() {
 	defer session.Close()
 
 	if args[1] == "analyze" {
-		//search existing song
+		// search existing song
 		if song := asr.SearchExistingSong(filename, session); song != nil {
 			fmt.Printf("Song %s already exists \n", song.Name)
 			return
 		}
 		asr.Analyze(filename, session)
-		fmt.Println("Analysis complete \n")
+		fmt.Println("Analysis complete")
 	}
 	if args[1] == "lookup" {
 		song := asr.LookUp(filename, session)

@@ -5,8 +5,12 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"strings"
+
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/wav"
 
 	"github.com/satori/go.uuid"
 
@@ -130,8 +134,14 @@ func SearchExistingSong(name *string, session *mgo.Session) *Song {
 }
 
 //Create spectrogram for wav file
-func createSpectrogram(file *string) [][]float64 {
-	wav, werr := io.ReadWav(*file)
+func createSpectrogram(fileName *string) [][]float64 {
+	if strings.Contains(*fileName, ".mp3") {
+		fmt.Println("File is in mp3 format; converting to wav...")
+		fileName = mp3ToWavConverter(fileName)
+		fmt.Println("Finished conveting")
+	}
+
+	wav, werr := io.ReadWav(*fileName)
 	if werr != nil {
 		log.Fatal(werr)
 	}
@@ -185,4 +195,22 @@ func writeFingerPrintsToDB(hashes *[]string, session *mgo.Session) []string {
 		}
 	}
 	return fingerprintIDs
+}
+
+func mp3ToWavConverter(fileName *string) *string {
+	file, _ := os.Open(*fileName)
+
+	wave, format, err := mp3.Decode(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	name := strings.Replace(*fileName, ".mp3", ".wav", 1)
+	output, _ := os.Create(name)
+	encodeErr := wav.Encode(output, wave, format)
+	if encodeErr != nil {
+		log.Fatal(encodeErr)
+	}
+	output.Close()
+	return &name
 }

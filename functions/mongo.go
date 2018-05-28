@@ -76,9 +76,6 @@ func SearchExistingSongInDb(name *string, session *mgo.Session) *Song {
 	result := &Song{}
 	err := c.Find(bson.M{"name": name}).One(result)
 	if err != nil {
-		log.Fatal(err)
-	}
-	if result == nil {
 		return nil
 	}
 	return result

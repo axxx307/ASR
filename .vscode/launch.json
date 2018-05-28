@@ -14,7 +14,7 @@
             "host": "127.0.0.1",
             "program": "${fileDirname}",
             "env": {},
-            "args": ["lookup", "sample.wav"],
+            "args": ["analyze", "acdc.mp3"],
             "showLog": true
         }
     ]
