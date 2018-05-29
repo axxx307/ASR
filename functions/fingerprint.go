@@ -28,6 +28,22 @@ const MinAmpLimit = 300
 //MaxAmpLimit minimum threshold for a frequency to be registered
 const MaxAmpLimit = 2000
 
+//MaxFrameLengthThreshold max frames in a single song/audio. roughly a ~9 seconds
+const MaxFrameLengthThreshold = 866
+
+const (
+	//Lookup mode
+	Lookup ProgramMode = "lookup"
+	//Analyze mode
+	Analyze ProgramMode = "analyze"
+)
+
+//CurrentMode is a global value for current mode of the program
+var CurrentMode ProgramMode
+
+//ProgramMode is a type for an enum of programs mode: lookup, analyze ...
+type ProgramMode string
+
 //SortPair is used sorting songs appearence by value
 type SortPair struct {
 	key   string
@@ -41,8 +57,13 @@ func (p PairList) Len() int           { return len(p) }
 func (p PairList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 func (p PairList) Less(i, j int) bool { return p[i].value < p[j].value }
 
-//Analyze song into multiple blocks of subfingerprints
-func Analyze(file *string, session *mgo.Session) {
+//Init constructor
+func Init(mode ProgramMode) {
+	CurrentMode = mode
+}
+
+//AnalyzeInput song into multiple blocks of subfingerprints
+func AnalyzeInput(file *string, session *mgo.Session) {
 	spectorgram := createSpectrogram(file)
 	peaks := processPeaks(spectorgram)
 
@@ -87,7 +108,6 @@ func LookUp(file *string, session *mgo.Session) string {
 			}
 		}
 		peaks[index] = subFingerprint
-
 	}
 
 	hashes := make([]string, len(peaks))
@@ -154,7 +174,13 @@ func createSpectrogram(fileName *string) [][]float64 {
 		Window:     window.CreateHanning(2048),
 	}
 
-	spectrogram, _ := gossp.SplitSpectrogram(spgramConfig.STFT(monoData))
+	//get short ft value and limit number of frames to MaxFrameLengthThreshold
+	ft := spgramConfig.STFT(monoData)
+	if CurrentMode == Lookup && len(ft) > MaxFrameLengthThreshold {
+		ft = ft[:MaxFrameLengthThreshold]
+	}
+
+	spectrogram, _ := gossp.SplitSpectrogram(ft)
 	return spectrogram
 }
 

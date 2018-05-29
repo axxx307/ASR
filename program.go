@@ -22,14 +22,16 @@ func main() {
 
 	if args[1] == "analyze" {
 		// search existing song
+		asr.Init(asr.Analyze)
 		if song := asr.SearchExistingSong(filename, session); song != nil {
 			fmt.Printf("Song %s already exists \n", song.Name)
 			return
 		}
-		asr.Analyze(filename, session)
+		asr.AnalyzeInput(filename, session)
 		fmt.Println("Analysis complete")
 	}
 	if args[1] == "lookup" {
+		asr.Init(asr.Lookup)
 		song := asr.LookUp(filename, session)
 		fmt.Printf("Song is - %s \n", song)
 	}
