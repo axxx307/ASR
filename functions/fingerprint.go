@@ -197,7 +197,6 @@ func generateHashes(localMax *[]float64) string {
 	hash := sha1.New()
 	hashStr := ""
 	hashStr += strings.Trim(strings.Join(strings.Fields(fmt.Sprint(*localMax)), "|"), "[]")
-	println(hashStr)
 	hash.Write([]byte(hashStr))
 	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
 }
