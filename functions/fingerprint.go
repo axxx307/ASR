@@ -69,15 +69,13 @@ func AnalyzeInput(file *string, session *mgo.Session) {
 
 	//remove frequencies below threshold
 	for index, peak := range peaks {
-		k := 0
-		subFingerprint := make([]float64, len(peak))
+		subFingerprint := make(map[int][]float64)
 		for _, value := range peak {
 			if value/100 >= MinAmpLimit && value/100 <= MaxAmpLimit {
-				subFingerprint[k] = value
-				k++
+				subFingerprint[index] = append(subFingerprint[index], value)
 			}
 		}
-		peaks[index] = subFingerprint
+		peaks[index] = subFingerprint[index]
 
 	}
 
@@ -99,15 +97,13 @@ func LookUp(file *string, session *mgo.Session) string {
 
 	//remove frequencies below threshold
 	for index, peak := range peaks {
-		k := 0
-		subFingerprint := make([]float64, len(peak))
+		subFingerprint := make(map[int][]float64)
 		for _, value := range peak {
 			if value/100 >= MinAmpLimit && value/100 <= MaxAmpLimit {
-				subFingerprint[k] = value
-				k++
+				subFingerprint[index] = append(subFingerprint[index], value)
 			}
 		}
-		peaks[index] = subFingerprint
+		peaks[index] = subFingerprint[index]
 	}
 
 	hashes := make([]string, len(peaks))
@@ -201,6 +197,7 @@ func generateHashes(localMax *[]float64) string {
 	hash := sha1.New()
 	hashStr := ""
 	hashStr += strings.Trim(strings.Join(strings.Fields(fmt.Sprint(*localMax)), "|"), "[]")
+	println(hashStr)
 	hash.Write([]byte(hashStr))
 	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
 }
