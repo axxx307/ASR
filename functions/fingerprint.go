@@ -125,6 +125,9 @@ func LookUp(file *string, session *mgo.Session) string {
 		}
 	}
 
+	if len(hashMap) == 0 {
+		return "unknown"
+	}
 	//retreive all songs and number of times tey were found by fingerprint
 	songs := make(map[string]int)
 	for fingerprint := range hashMap {

@@ -46,10 +46,7 @@ func WriteSong(song *Song, session *mgo.Session) error {
 func SearchSongBySubFingerprint(hash *string, session *mgo.Session) string {
 	c := session.DB("ASR").C("fingerprints")
 	result := &SubFingerprint{Hash: ""}
-	err := c.Find(bson.M{"hash": hash}).One(result)
-	if err != nil {
-		log.Fatal(err)
-	}
+	c.Find(bson.M{"hash": hash}).One(result)
 	if result.Hash == "" {
 		return ""
 	}
