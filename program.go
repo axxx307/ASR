@@ -20,7 +20,8 @@ func main() {
 	}
 	defer session.Close()
 
-	if args[1] == "analyze" {
+	switch args[1] {
+	case "analyze":
 		// search existing song
 		asr.Init(asr.Analyze)
 		if song := asr.SearchExistingSong(filename, session); song != nil {
@@ -29,8 +30,11 @@ func main() {
 		}
 		asr.AnalyzeInput(filename, session)
 		fmt.Println("Analysis complete")
-	}
-	if args[1] == "lookup" {
+	case "lookup":
+		asr.Init(asr.Lookup)
+		song := asr.LookUp(filename, session)
+		fmt.Printf("Song is - %s \n", song)
+	case "read-lookup":
 		asr.Init(asr.Lookup)
 		song := asr.LookUp(filename, session)
 		fmt.Printf("Song is - %s \n", song)

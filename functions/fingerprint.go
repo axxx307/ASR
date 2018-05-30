@@ -11,6 +11,7 @@ import (
 
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/wav"
+	"github.com/gordonklaus/portaudio"
 
 	"github.com/satori/go.uuid"
 
@@ -60,6 +61,37 @@ func (p PairList) Less(i, j int) bool { return p[i].value < p[j].value }
 //Init constructor
 func Init(mode ProgramMode) {
 	CurrentMode = mode
+}
+
+//MicrophoneInput read microphone input
+func MicrophoneInput() [][]int32 {
+	portaudio.Initialize()
+	defer portaudio.Terminate()
+	in := make([]int32, 512)
+	nSamples := 0
+	stream, err := portaudio.OpenDefaultStream(1, 0, 44100, len(in), in)
+	chk(err)
+	defer stream.Close()
+
+	data := make([][]int32, MaxFrameLengthThreshold)
+	chk(stream.Start())
+	for index := 0; index < MaxFrameLengthThreshold; index++ {
+		chk(stream.Read())
+		nSamples += len(in)
+		data[index] = in
+		println(index)
+	}
+	chk(stream.Stop())
+
+	flData := make([][]float64, MaxFrameLengthThreshold)
+	for index := 0; index < MaxFrameLengthThreshold; index++ {
+		arr := make([]float64, len(data[index]))
+		for ind, value := range data[index] {
+			arr[ind] = float64(value)
+		}
+		flData[index] = arr
+	}
+	return flData
 }
 
 //AnalyzeInput song into multiple blocks of subfingerprints
@@ -238,4 +270,10 @@ func mp3ToWavConverter(fileName *string) *string {
 	}
 	output.Close()
 	return &name
+}
+
+func chk(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
