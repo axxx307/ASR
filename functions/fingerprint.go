@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/wav"
@@ -37,6 +38,8 @@ const (
 	Lookup ProgramMode = "lookup"
 	//Analyze mode
 	Analyze ProgramMode = "analyze"
+	//LookupMic mode
+	LookupMic ProgramMode = "lookup-mic"
 )
 
 //CurrentMode is a global value for current mode of the program
@@ -61,35 +64,6 @@ func (p PairList) Less(i, j int) bool { return p[i].value < p[j].value }
 //Init constructor
 func Init(mode ProgramMode) {
 	CurrentMode = mode
-}
-
-//MicrophoneInput read microphone input
-func MicrophoneInput() []float64 {
-	portaudio.Initialize()
-	defer portaudio.Terminate()
-	in := make([]int32, 512)
-	nSamples := 0
-	stream, err := portaudio.OpenDefaultStream(1, 0, 44100, len(in), in)
-	chk(err)
-	defer stream.Close()
-
-	data := make([][]int32, MaxFrameLengthThreshold)
-	chk(stream.Start())
-	for index := 0; index < MaxFrameLengthThreshold; index++ {
-		chk(stream.Read())
-		nSamples += len(in)
-		data[index] = in
-		println(index)
-	}
-	chk(stream.Stop())
-
-	flData := make([]float64, MaxFrameLengthThreshold*44100)
-	for index := 0; index < MaxFrameLengthThreshold; index++ {
-		for ind, value := range data[index] {
-			flData[ind] = float64(value)
-		}
-	}
-	return flData
 }
 
 //AnalyzeInput song into multiple blocks of subfingerprints
@@ -123,7 +97,14 @@ func AnalyzeInput(file *string, session *mgo.Session) {
 
 //LookUp searches song by generated hashes
 func LookUp(file *string, session *mgo.Session) string {
-	monoData, sampleRate := readWavMonoData(file)
+	var monoData []float64
+	var sampleRate uint32
+	if CurrentMode == LookupMic {
+		monoData, sampleRate = microphoneInput()
+	} else {
+		monoData, sampleRate = readWavMonoData(file)
+	}
+
 	spectorgram := createSpectrogram(&monoData, &sampleRate)
 	peaks := processPeaks(spectorgram)
 
@@ -182,6 +163,37 @@ func LookUp(file *string, session *mgo.Session) string {
 //SearchExistingSong - search song by name in case we try to run analysis on it again
 func SearchExistingSong(name *string, session *mgo.Session) *Song {
 	return SearchExistingSongInDb(name, session)
+}
+
+//MicrophoneInput read microphone input
+func microphoneInput() ([]float64, uint32) {
+	portaudio.Initialize()
+	defer portaudio.Terminate()
+	in := make([]int32, 512)
+	nSamples := 0
+	stream, err := portaudio.OpenDefaultStream(1, 0, 44100, len(in), in)
+	chk(err)
+	defer stream.Close()
+
+	data := make([][]int32, MaxFrameLengthThreshold)
+	fmt.Println("In 3 seconds the recording will start")
+	time.Sleep(3 * time.Second)
+	chk(stream.Start())
+	fmt.Println("Recording started")
+	for index := 0; index < MaxFrameLengthThreshold; index++ {
+		chk(stream.Read())
+		nSamples += len(in)
+		data[index] = in
+	}
+	chk(stream.Stop())
+
+	flData := make([]float64, MaxFrameLengthThreshold*44100)
+	for index := 0; index < MaxFrameLengthThreshold; index++ {
+		for ind, value := range data[index] {
+			flData[ind] = float64(value)
+		}
+	}
+	return flData, 44100
 }
 
 //Create spectrogram for wav file
