@@ -64,7 +64,7 @@ func Init(mode ProgramMode) {
 }
 
 //MicrophoneInput read microphone input
-func MicrophoneInput() [][]int32 {
+func MicrophoneInput() []float64 {
 	portaudio.Initialize()
 	defer portaudio.Terminate()
 	in := make([]int32, 512)
@@ -83,20 +83,19 @@ func MicrophoneInput() [][]int32 {
 	}
 	chk(stream.Stop())
 
-	flData := make([][]float64, MaxFrameLengthThreshold)
+	flData := make([]float64, MaxFrameLengthThreshold*44100)
 	for index := 0; index < MaxFrameLengthThreshold; index++ {
-		arr := make([]float64, len(data[index]))
 		for ind, value := range data[index] {
-			arr[ind] = float64(value)
+			flData[ind] = float64(value)
 		}
-		flData[index] = arr
 	}
 	return flData
 }
 
 //AnalyzeInput song into multiple blocks of subfingerprints
 func AnalyzeInput(file *string, session *mgo.Session) {
-	spectorgram := createSpectrogram(file)
+	monoData, sampleRate := readWavMonoData(file)
+	spectorgram := createSpectrogram(&monoData, &sampleRate)
 	peaks := processPeaks(spectorgram)
 
 	//remove frequencies below threshold
@@ -124,7 +123,8 @@ func AnalyzeInput(file *string, session *mgo.Session) {
 
 //LookUp searches song by generated hashes
 func LookUp(file *string, session *mgo.Session) string {
-	spectorgram := createSpectrogram(file)
+	monoData, sampleRate := readWavMonoData(file)
+	spectorgram := createSpectrogram(&monoData, &sampleRate)
 	peaks := processPeaks(spectorgram)
 
 	//remove frequencies below threshold
@@ -185,7 +185,24 @@ func SearchExistingSong(name *string, session *mgo.Session) *Song {
 }
 
 //Create spectrogram for wav file
-func createSpectrogram(fileName *string) [][]float64 {
+func createSpectrogram(monoData *[]float64, sampleRate *uint32) [][]float64 {
+	spgramConfig := &stft.STFT{
+		FrameShift: int(float64(*sampleRate) / 100.0), // 0.01 sec,
+		FrameLen:   2048,
+		Window:     window.CreateHanning(2048),
+	}
+
+	//get short ft value and limit number of frames to MaxFrameLengthThreshold
+	ft := spgramConfig.STFT(*monoData)
+	if CurrentMode == Lookup && len(ft) > MaxFrameLengthThreshold {
+		ft = ft[:MaxFrameLengthThreshold]
+	}
+
+	spectrogram, _ := gossp.SplitSpectrogram(ft)
+	return spectrogram
+}
+
+func readWavMonoData(fileName *string) ([]float64, uint32) {
 	if strings.Contains(*fileName, ".mp3") {
 		fmt.Println("File is in mp3 format; converting to wav...")
 		fileName = mp3ToWavConverter(fileName)
@@ -197,22 +214,8 @@ func createSpectrogram(fileName *string) [][]float64 {
 		log.Fatal(werr)
 	}
 
-	monoData := wav.GetMonoData()
+	return wav.GetMonoData(), wav.SampleRate
 
-	spgramConfig := &stft.STFT{
-		FrameShift: int(float64(wav.SampleRate) / 100.0), // 0.01 sec,
-		FrameLen:   2048,
-		Window:     window.CreateHanning(2048),
-	}
-
-	//get short ft value and limit number of frames to MaxFrameLengthThreshold
-	ft := spgramConfig.STFT(monoData)
-	if CurrentMode == Lookup && len(ft) > MaxFrameLengthThreshold {
-		ft = ft[:MaxFrameLengthThreshold]
-	}
-
-	spectrogram, _ := gossp.SplitSpectrogram(ft)
-	return spectrogram
 }
 
 func processPeaks(matrix [][]float64) [][]float64 {
