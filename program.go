@@ -34,8 +34,8 @@ func main() {
 		asr.Init(asr.Lookup)
 		song := asr.LookUp(filename, session)
 		fmt.Printf("Song is - %s \n", song)
-	case "read-lookup":
-		asr.Init(asr.Lookup)
+	case "lookup-mic":
+		asr.Init(asr.LookupMic)
 		song := asr.LookUp(filename, session)
 		fmt.Printf("Song is - %s \n", song)
 	}
