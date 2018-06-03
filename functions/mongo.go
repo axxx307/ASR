@@ -21,6 +21,7 @@ type SubFingerprint struct {
 	FingerPrintID    string
 	SubFingerPrintID string
 	Hash             string
+	BlockPosition    uint16
 }
 
 //Song ...

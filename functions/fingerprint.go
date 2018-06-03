@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/faiface/beep/mp3"
@@ -105,8 +106,15 @@ func LookUp(file *string, session *mgo.Session) string {
 		monoData, sampleRate = readWavMonoData(file)
 	}
 
+	start := time.Now()
 	spectorgram := createSpectrogram(&monoData, &sampleRate)
+	elapsed := time.Since(start)
+	log.Printf("Create spectrogram took %s", elapsed)
+
+	start = time.Now()
 	peaks := processPeaks(spectorgram)
+	elapsed = time.Since(start)
+	log.Printf("process peaks took %s", elapsed)
 
 	//remove frequencies below threshold
 	for index, peak := range peaks {
@@ -119,25 +127,44 @@ func LookUp(file *string, session *mgo.Session) string {
 		peaks[index] = subFingerprint[index]
 	}
 
+	start = time.Now()
 	hashes := make([]string, len(peaks))
 	for index, peak := range peaks {
 		hashes[index] = generateHashes(&peak)
 	}
+	elapsed = time.Since(start)
+	log.Printf("Generate hashesh took %s", elapsed)
+	log.Printf("Number of hashes %v", len(hashes))
 
+	start = time.Now()
 	//find fingerprint blocks where at least one of the subfingerprints match in database
 	hashMap := make(map[string]bool)
+	sem := make(chan struct{}, 200)
+	var wait sync.WaitGroup
+	wait.Add(len(hashes))
 	for _, hash := range hashes {
-		if fingerprintID := SearchSongBySubFingerprint(&hash, session); fingerprintID != "" {
-			if _, exists := hashMap[fingerprintID]; !exists {
-				hashMap[fingerprintID] = true
-			}
+		select {
+		case sem <- struct{}{}:
+			go func() {
+				searchSongRoutine(&hash, &hashMap, session)
+				<-sem
+				wait.Done()
+			}()
+		default:
+			searchSongRoutine(&hash, &hashMap, session)
+			wait.Done()
 		}
 	}
+	println("started waiting")
+	wait.Wait()
+	elapsed = time.Since(start)
+	log.Printf("find fingerprint blocks took %s", elapsed)
 
 	if len(hashMap) == 0 {
 		return "unknown"
 	}
 	//retreive all songs and number of times tey were found by fingerprint
+	start = time.Now()
 	songs := make(map[string]int)
 	for fingerprint := range hashMap {
 		song := SearchSongByFingerprint(&fingerprint, session)
@@ -147,6 +174,8 @@ func LookUp(file *string, session *mgo.Session) string {
 			songs[song.Name]++
 		}
 	}
+	elapsed = time.Since(start)
+	log.Printf("Database search took %s", elapsed)
 
 	//sort songs in descending order and return one with more of block hit
 	index := 0
@@ -163,6 +192,16 @@ func LookUp(file *string, session *mgo.Session) string {
 //SearchExistingSong - search song by name in case we try to run analysis on it again
 func SearchExistingSong(name *string, session *mgo.Session) *Song {
 	return SearchExistingSongInDb(name, session)
+}
+
+func searchSongRoutine(hash *string, hashMap *map[string]bool, session *mgo.Session) {
+	sessionCopy := session.Copy()
+	defer sessionCopy.Close()
+	if fingerprintID := SearchSongBySubFingerprint(hash, session); fingerprintID != "" {
+		if _, exists := (*hashMap)[fingerprintID]; !exists {
+			(*hashMap)[fingerprintID] = true
+		}
+	}
 }
 
 //MicrophoneInput read microphone input
@@ -186,11 +225,12 @@ func microphoneInput() ([]float64, uint32) {
 		data[index] = in
 	}
 	chk(stream.Stop())
+	fmt.Println("Recording stopped")
 
-	flData := make([]float64, MaxFrameLengthThreshold*44100)
+	flData := []float64{}
 	for index := 0; index < MaxFrameLengthThreshold; index++ {
-		for ind, value := range data[index] {
-			flData[ind] = float64(value)
+		for _, value := range data[index] {
+			flData = append(flData, float64(value))
 		}
 	}
 	return flData, 44100
@@ -254,7 +294,7 @@ func writeFingerPrintsToDB(hashes *[]string, session *mgo.Session) []string {
 	fingerprintIDs[0] = fingerpintGUID.String()
 	for index, hash := range *hashes {
 		guid, _ := uuid.NewV4()
-		fingerprint := &SubFingerprint{SubFingerPrintID: guid.String()}
+		fingerprint := &SubFingerprint{SubFingerPrintID: guid.String(), BlockPosition: uint16(index)}
 		fingerprint.FingerPrintID = fingerpintGUID.String()
 		//set new fingerprint block
 		if index%256 == 0 && index != 0 {
