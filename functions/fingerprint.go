@@ -198,9 +198,7 @@ func searchSongRoutine(hash *string, hashMap *map[string]bool, session *mgo.Sess
 	sessionCopy := session.Copy()
 	defer sessionCopy.Close()
 	if fingerprintID := SearchSongBySubFingerprint(hash, session); fingerprintID != "" {
-		if _, exists := (*hashMap)[fingerprintID]; !exists {
-			(*hashMap)[fingerprintID] = true
-		}
+		(*hashMap)[fingerprintID] = true
 	}
 }
 
