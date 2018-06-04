@@ -1,6 +1,7 @@
-package asr
+package music
 
 import (
+	mongo "ASR/mongodb"
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
@@ -90,8 +91,8 @@ func AnalyzeInput(file *string, session *mgo.Session) {
 		hashes[index] = generateHashes(&peak)
 	}
 	fingerprintIDs := writeFingerPrintsToDB(&hashes, session)
-	song := &Song{Name: *file, Duration: "0", FingerprintIDs: &fingerprintIDs}
-	if error := WriteSong(song, session); error != nil {
+	song := &mongo.Song{Name: *file, Duration: "0", FingerprintIDs: &fingerprintIDs}
+	if error := mongo.WriteSong(song, session); error != nil {
 		log.Fatal(error)
 	}
 }
@@ -167,7 +168,7 @@ func LookUp(file *string, session *mgo.Session) string {
 	start = time.Now()
 	songs := make(map[string]int)
 	for fingerprint := range hashMap {
-		song := SearchSongByFingerprint(&fingerprint, session)
+		song := mongo.SearchSongByFingerprint(&fingerprint, session)
 		if _, exists := songs[song.Name]; !exists && song.Name != "" {
 			songs[song.Name] = 1
 		} else {
@@ -190,14 +191,14 @@ func LookUp(file *string, session *mgo.Session) string {
 }
 
 //SearchExistingSong - search song by name in case we try to run analysis on it again
-func SearchExistingSong(name *string, session *mgo.Session) *Song {
-	return SearchExistingSongInDb(name, session)
+func SearchExistingSong(name *string, session *mgo.Session) *mongo.Song {
+	return mongo.SearchExistingSongInDb(name, session)
 }
 
 func searchSongRoutine(hash *string, hashMap *map[string]bool, session *mgo.Session) {
 	sessionCopy := session.Copy()
 	defer sessionCopy.Close()
-	if fingerprintID := SearchSongBySubFingerprint(hash, session); fingerprintID != "" {
+	if fingerprintID := mongo.SearchSongBySubFingerprint(hash, session); fingerprintID != "" {
 		(*hashMap)[fingerprintID] = true
 	}
 }
@@ -292,7 +293,7 @@ func writeFingerPrintsToDB(hashes *[]string, session *mgo.Session) []string {
 	fingerprintIDs[0] = fingerpintGUID.String()
 	for index, hash := range *hashes {
 		guid, _ := uuid.NewV4()
-		fingerprint := &SubFingerprint{SubFingerPrintID: guid.String(), BlockPosition: uint16(index)}
+		fingerprint := &mongo.SubFingerprint{SubFingerPrintID: guid.String(), BlockPosition: uint16(index)}
 		fingerprint.FingerPrintID = fingerpintGUID.String()
 		//set new fingerprint block
 		if index%256 == 0 && index != 0 {
@@ -300,7 +301,7 @@ func writeFingerPrintsToDB(hashes *[]string, session *mgo.Session) []string {
 			fingerprintIDs = append(fingerprintIDs, fingerpintGUID.String())
 		}
 		fingerprint.Hash = hash
-		if error := WriteSubFingerprint(fingerprint, session); error != nil {
+		if error := mongo.WriteSubFingerprint(fingerprint, session); error != nil {
 			log.Fatal(error)
 		}
 	}

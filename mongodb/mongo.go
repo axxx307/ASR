@@ -1,4 +1,4 @@
-package asr
+package mongo
 
 import (
 	"log"
@@ -22,10 +22,12 @@ type SubFingerprint struct {
 	SubFingerPrintID string
 	Hash             string
 	BlockPosition    uint16
+	SongID           string
 }
 
 //Song ...
 type Song struct {
+	ID             string
 	Name           string
 	Duration       string
 	FingerprintIDs *[]string

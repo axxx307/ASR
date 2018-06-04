@@ -1,13 +1,17 @@
 package main
 
 import (
-	asr "ASR/functions"
+	music "ASR/fingerprint"
 	"flag"
 	"fmt"
 	"os"
 
 	mgo "gopkg.in/mgo.v2"
 )
+
+/// need to work on creating db from scratch with indexed hash songs
+/// then see performance difference between faulty lookups vs all good ones
+///
 
 func main() {
 	args := os.Args
@@ -23,20 +27,20 @@ func main() {
 	switch args[1] {
 	case "analyze":
 		// search existing song
-		asr.Init(asr.Analyze)
-		if song := asr.SearchExistingSong(filename, session); song != nil {
+		music.Init(music.Analyze)
+		if song := music.SearchExistingSong(filename, session); song != nil {
 			fmt.Printf("Song %s already exists \n", song.Name)
 			return
 		}
-		asr.AnalyzeInput(filename, session)
+		music.AnalyzeInput(filename, session)
 		fmt.Println("Analysis complete")
 	case "lookup":
-		asr.Init(asr.Lookup)
-		song := asr.LookUp(filename, session)
+		music.Init(music.Lookup)
+		song := music.LookUp(filename, session)
 		fmt.Printf("Song is - %s \n", song)
 	case "lookup-mic":
-		asr.Init(asr.LookupMic)
-		song := asr.LookUp(filename, session)
+		music.Init(music.LookupMic)
+		song := music.LookUp(filename, session)
 		fmt.Printf("Song is - %s \n", song)
 	}
 }
