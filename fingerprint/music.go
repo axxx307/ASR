@@ -82,13 +82,17 @@ func AnalyzeInput(file *string, session *mgo.Session) {
 				subFingerprint[index] = append(subFingerprint[index], value)
 			}
 		}
+		if len(subFingerprint) == 0 {
+			delete(peaks, index)
+			continue
+		}
 		peaks[index] = subFingerprint[index]
 
 	}
 
-	hashes := make([]string, len(peaks))
-	for index, peak := range peaks {
-		hashes[index] = generateHashes(&peak)
+	hashes := []string{}
+	for _, peak := range peaks {
+		hashes = append(hashes, generateHashes(&peak))
 	}
 	songID, _ := uuid.NewV4()
 	song := &mongo.Song{Name: *file, Duration: "0", ID: songID.String()}
@@ -97,6 +101,8 @@ func AnalyzeInput(file *string, session *mgo.Session) {
 	if error := mongo.WriteSong(song, session); error != nil {
 		log.Fatal(error)
 	}
+
+	mongo.CreateIndex(session)
 }
 
 //LookUp searches song by generated hashes
@@ -271,20 +277,24 @@ func readWavMonoData(fileName *string) ([]float64, uint32) {
 
 }
 
-func processPeaks(matrix [][]float64) [][]float64 {
-	peaks := make([][]float64, len(matrix))
-	for frame, vec := range matrix {
-		_, _, _, maxv := peakdetect.PeakDetect(vec[:], 1.0)
-		sort.Float64s(maxv)
-		peaks[frame] = maxv
+func processPeaks(matrix [][]float64) map[int][]float64 {
+	k := 0
+	peaks := make(map[int][]float64)
+	for _, vec := range matrix {
+		_, _, _, maxp := peakdetect.PeakDetect(vec[:], 1.0)
+		if len(maxp) == 0 {
+			continue
+		}
+		sort.Float64s(maxp)
+		peaks[k] = maxp
+		k++
 	}
 	return peaks
 }
 
 func generateHashes(localMax *[]float64) string {
 	hash := sha1.New()
-	hashStr := ""
-	hashStr += strings.Trim(strings.Join(strings.Fields(fmt.Sprint(*localMax)), "|"), "[]")
+	hashStr := strings.Trim(strings.Replace(fmt.Sprint(*localMax), " ", "|", -1), "[]")
 	hash.Write([]byte(hashStr))
 	return base64.URLEncoding.EncodeToString(hash.Sum(nil))
 }

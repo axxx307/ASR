@@ -80,3 +80,18 @@ func SearchExistingSongInDb(name *string, session *mgo.Session) *Song {
 	}
 	return result
 }
+
+func CreateIndex(session *mgo.Session) {
+	collection := session.DB("ASR").C("fingerprints")
+	index := mgo.Index{
+		Key:        []string{"hash"},
+		Unique:     true,
+		DropDups:   true,
+		Background: true,
+		Sparse:     true,
+	}
+	err := collection.EnsureIndex(index)
+	if err != nil {
+		panic(err)
+	}
+}
