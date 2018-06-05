@@ -148,17 +148,18 @@ func LookUp(file *string, session *mgo.Session) string {
 	start = time.Now()
 	//find fingerprint blocks where at least one of the subfingerprints match in database
 	hashMap := make(map[string]bool)
-	sem := make(chan struct{}, 200)
+	sem := make(chan struct{})
 	var wait sync.WaitGroup
 	wait.Add(len(hashes))
 	for _, hash := range hashes {
 		select {
 		case sem <- struct{}{}:
-			go func() {
+			//pass waitgroup by reference to avoid deadlock
+			go func(wt *sync.WaitGroup) {
 				searchSongRoutine(&hash, &hashMap, session)
 				<-sem
-				wait.Done()
-			}()
+				wt.Done()
+			}(&wait)
 		default:
 			searchSongRoutine(&hash, &hashMap, session)
 			wait.Done()
@@ -206,7 +207,8 @@ func SearchExistingSong(name *string, session *mgo.Session) *mongo.Song {
 func searchSongRoutine(hash *string, hashMap *map[string]bool, session *mgo.Session) {
 	sessionCopy := session.Copy()
 	defer sessionCopy.Close()
-	if fingerprintID := mongo.SearchSongBySubFingerprint(hash, session); fingerprintID != "" {
+	fingerprintID := mongo.SearchSongBySubFingerprint(hash, sessionCopy)
+	if fingerprintID != "" {
 		(*hashMap)[fingerprintID] = true
 	}
 }
@@ -245,13 +247,17 @@ func microphoneInput() ([]float64, uint32) {
 
 //Create spectrogram for wav file
 func createSpectrogram(monoData *[]float64, sampleRate *uint32) [][]float64 {
+	start := time.Now()
 	spgramConfig := &stft.STFT{
 		FrameShift: int(float64(*sampleRate) / 100.0), // 0.01 sec,
 		FrameLen:   2048,
 		Window:     window.CreateHanning(2048),
 	}
+	elapsed := time.Since(start)
+	log.Printf("Hanning window search took %s", elapsed)
 
 	//get short ft value and limit number of frames to MaxFrameLengthThreshold
+
 	ft := spgramConfig.STFT(*monoData)
 	if CurrentMode == Lookup && len(ft) > MaxFrameLengthThreshold {
 		ft = ft[:MaxFrameLengthThreshold]
@@ -301,21 +307,23 @@ func generateHashes(localMax *[]float64) string {
 
 func writeFingerPrintsToDB(hashes *[]string, songID string, session *mgo.Session) []string {
 	fingerpintGUID, _ := uuid.NewV4()
-	fingerprintIDs := make([]string, len(*hashes)/256+1)
-	fingerprintIDs[0] = fingerpintGUID.String()
-	for index, hash := range *hashes {
+	fingerprintIDs := []string{}
+	fingerprintIDs = append(fingerprintIDs, fingerpintGUID.String())
+	k := 0
+	for _, hash := range *hashes {
 		guid, _ := uuid.NewV4()
-		fingerprint := &mongo.SubFingerprint{SubFingerPrintID: guid.String(), BlockPosition: uint16(index), SongID: songID}
+		fingerprint := &mongo.SubFingerprint{SubFingerPrintID: guid.String(), SongID: songID, Hash: hash}
 		fingerprint.FingerPrintID = fingerpintGUID.String()
 		//set new fingerprint block
-		if index%256 == 0 && index != 0 {
+		if k/256 == 1 {
 			fingerpintGUID, _ = uuid.NewV4()
 			fingerprintIDs = append(fingerprintIDs, fingerpintGUID.String())
+			k = 0
 		}
-		fingerprint.Hash = hash
 		if error := mongo.WriteSubFingerprint(fingerprint, session); error != nil {
 			log.Fatal(error)
 		}
+		k++
 	}
 	return fingerprintIDs
 }
