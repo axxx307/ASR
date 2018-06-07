@@ -7,10 +7,13 @@ ASR - short for Automatic Speech Recognition. In a current state supports adding
 Clone the project and run ``` go run program <mode> <filename>``` where mode: 1) analysis - for writing songs fingerprints into db 2) lookup - to find song by using file 3) lookup-mic - use microphone to find the song
 
 ## Future work
-* [ ] Improve finding speed 
-* [ ] Add auto-tests
-* [ ] Add support for voice recognition
-* [ ] Add support for real-time recognition
+- [x] Improve finding speed - Speed reduced from ~30-35 seconds to ~2-4 seconds.
+- [ ] Refactoring
+    - [ ] Fix for hash-generating function
+    - [ ] Overall functions refactoring 
+- [ ] Add auto-tests
+- [ ] Add support for voice recognition
+- [ ] Add support for real-time recognition
 
 ## Acknowledgments
 
