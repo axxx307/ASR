@@ -90,9 +90,21 @@ func AnalyzeInput(file *string, session *mgo.Session) {
 
 	}
 
+	i := 0
+	k := 5
 	hashes := []string{}
 	for _, peak := range peaks {
-		hashes = append(hashes, generateHashes(&peak))
+		var subPeak []float64
+		for len(peak)-1 >= k+5 {
+			subPeak = peak[i:k]
+			hashes = append(hashes, generateHashes(&subPeak))
+			i += 5
+			k += 5
+		}
+		subPeak = peak[i:]
+		hashes = append(hashes, generateHashes(&subPeak))
+		i = 0
+		k = 5
 	}
 	songID, _ := uuid.NewV4()
 	song := &mongo.Song{Name: *file, Duration: "0", ID: songID.String()}
@@ -115,15 +127,8 @@ func LookUp(file *string, session *mgo.Session) string {
 		monoData, sampleRate = readWavMonoData(file)
 	}
 
-	start := time.Now()
 	spectorgram := createSpectrogram(&monoData, &sampleRate)
-	elapsed := time.Since(start)
-	log.Printf("Create spectrogram took %s", elapsed)
-
-	start = time.Now()
 	peaks := processPeaks(spectorgram)
-	elapsed = time.Since(start)
-	log.Printf("process peaks took %s", elapsed)
 
 	//remove frequencies below threshold
 	for index, peak := range peaks {
@@ -136,16 +141,23 @@ func LookUp(file *string, session *mgo.Session) string {
 		peaks[index] = subFingerprint[index]
 	}
 
-	start = time.Now()
-	hashes := make([]string, len(peaks))
-	for index, peak := range peaks {
-		hashes[index] = generateHashes(&peak)
+	i := 0
+	k := 5
+	hashes := []string{}
+	for _, peak := range peaks {
+		var subPeak []float64
+		for len(peak)-1 >= k+5 {
+			subPeak = peak[i:k]
+			hashes = append(hashes, generateHashes(&subPeak))
+			i += 5
+			k += 5
+		}
+		subPeak = peak[i:]
+		hashes = append(hashes, generateHashes(&subPeak))
+		i = 0
+		k = 5
 	}
-	elapsed = time.Since(start)
-	log.Printf("Generate hashesh took %s", elapsed)
-	log.Printf("Number of hashes %v", len(hashes))
 
-	start = time.Now()
 	//find fingerprint blocks where at least one of the subfingerprints match in database
 	hashMap := make(map[string]bool)
 	sem := make(chan struct{})
@@ -165,16 +177,12 @@ func LookUp(file *string, session *mgo.Session) string {
 			wait.Done()
 		}
 	}
-	println("started waiting")
 	wait.Wait()
-	elapsed = time.Since(start)
-	log.Printf("find fingerprint blocks took %s", elapsed)
 
 	if len(hashMap) == 0 {
 		return "unknown"
 	}
 	//retreive all songs and number of times tey were found by fingerprint
-	start = time.Now()
 	songs := make(map[string]int)
 	for fingerprint := range hashMap {
 		song := mongo.SearchSongByFingerprint(&fingerprint, session)
@@ -184,8 +192,6 @@ func LookUp(file *string, session *mgo.Session) string {
 			songs[song.Name]++
 		}
 	}
-	elapsed = time.Since(start)
-	log.Printf("Database search took %s", elapsed)
 
 	//sort songs in descending order and return one with more of block hit
 	index := 0
