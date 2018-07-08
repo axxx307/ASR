@@ -25,6 +25,8 @@ func main() {
 	defer session.Close()
 
 	switch args[1] {
+	case "test":
+		music.TestWrapper(filename)
 	case "analyze":
 		// search existing song
 		music.Init(music.Analyze)

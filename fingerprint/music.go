@@ -1,5 +1,10 @@
 package music
 
+/*
+#include "../pythonSpectrogram/spectrogram.c"
+*/
+import "C"
+
 import (
 	mongo "ASR/mongodb"
 	"crypto/sha1"
@@ -66,6 +71,11 @@ func (p PairList) Less(i, j int) bool { return p[i].value < p[j].value }
 //Init constructor
 func Init(mode ProgramMode) {
 	CurrentMode = mode
+}
+
+func TestWrapper(file *string) {
+	monoData, sampleRate := readWavMonoData(file)
+	C.fingerprint(monoData)
 }
 
 //AnalyzeInput song into multiple blocks of subfingerprints
